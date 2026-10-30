@@ -1,0 +1,80 @@
+import { expect, test } from './support/fixtures'
+
+test.describe('Conta e sessão', () => {
+  test('cadastro valida campos, trata conflito e autentica', async ({ app, page }) => {
+    await app.boot()
+    await app.goto('/cadastro')
+    await page.getByRole('button', { name: 'Criar conta', exact: true }).click()
+    await expect(page.getByText('Use ao menos 3 caracteres')).toBeVisible()
+    await expect(page.getByText('Informe o e-mail')).toBeVisible()
+
+    await page.getByLabel('Nome de usuário').fill('nova.colecionadora')
+    await page.getByLabel('E-mail', { exact: true }).fill('ana@kurio.dev')
+    await page.getByLabel('Senha', { exact: true }).fill('Senha1234')
+    await page.getByLabel('Confirmar senha').fill('Senha1234')
+    await page.getByRole('button', { name: 'Criar conta', exact: true }).click()
+    await expect(page.getByText('Este e-mail já está cadastrado')).toBeVisible()
+    // The error is announced and tied to the field.
+    await expect(page.getByLabel('E-mail', { exact: true })).toHaveAttribute('aria-invalid', 'true')
+
+    await page.getByLabel('E-mail', { exact: true }).fill('nova@kurio.dev')
+    await page.getByRole('button', { name: 'Criar conta', exact: true }).click()
+    await expect(page).toHaveURL(/\/$/)
+    await expect(app.toast('Conta criada')).toBeVisible()
+    await app.goto('/perfil')
+    await expect(page.getByRole('textbox', { name: 'E-mail (obrigatório)' })).toHaveValue('nova@kurio.dev')
+  })
+
+  test('login com credenciais inválidas e retorno ao fluxo anterior', async ({ app, page }) => {
+    await app.boot()
+    await app.goto('/perfil/carteiras')
+    await expect(page).toHaveURL(/\/login\?redirect=/)
+    await page.getByLabel('E-mail', { exact: true }).fill('ana@kurio.dev')
+    await page.getByLabel('Senha', { exact: true }).fill('errada123')
+    await page.getByRole('button', { name: 'Entrar', exact: true }).click()
+    await expect(page.getByRole('alert').filter({ hasText: 'E-mail ou senha incorretos' })).toBeVisible()
+    await page.getByLabel('Senha', { exact: true }).fill('Kurio@123')
+    await page.getByRole('button', { name: 'Entrar', exact: true }).click()
+    await expect(page).toHaveURL(/\/perfil\/carteiras$/)
+    await expect(page.getByRole('heading', { name: 'Carteira principal' })).toBeVisible()
+  })
+
+  test('expiração de sessão durante a navegação preserva o destino', async ({ app, page }) => {
+    await app.boot()
+    await app.signIn('ana')
+    await app.goto('/perfil')
+    await expect(page.getByLabel('Nome de exibição')).toHaveValue('Ana Ribeiro')
+    await app.api('POST', '/__mock/sessions/expire')
+    await page.getByRole('link', { name: /Carteiras/ }).first().click()
+    await expect(page).toHaveURL(/\/login\?.*reason=expired/)
+    await expect(page.getByText('Sua sessão expirou. Entre novamente')).toBeVisible()
+    await page.getByLabel('E-mail', { exact: true }).fill('ana@kurio.dev')
+    await page.getByLabel('Senha', { exact: true }).fill('Kurio@123')
+    await page.getByRole('button', { name: 'Entrar', exact: true }).click()
+    await expect(page).toHaveURL(/\/perfil\/carteiras$/)
+  })
+
+  test('logout e troca de usuário limpam dados privados', async ({ app, page }) => {
+    await app.boot()
+    const token = await app.signIn('ana')
+    await app.seedCart(token, [['emerald-ape-042', 2]])
+    await app.goto('/favoritos')
+    await expect(page.getByRole('heading', { name: 'Emerald Ape #042' })).toBeVisible()
+
+    await app.goto('/perfil')
+    await page.getByRole('button', { name: 'Sair' }).click()
+    await expect(page).toHaveURL(/\/$/)
+    expect(await page.evaluate(() => localStorage.getItem('kurio:session'))).toBeNull()
+
+    await app.goto('/login')
+    await page.getByLabel('E-mail', { exact: true }).fill('bruno@kurio.dev')
+    await page.getByLabel('Senha', { exact: true }).fill('Kurio@123')
+    await page.getByRole('button', { name: 'Entrar', exact: true }).click()
+    await expect(page).toHaveURL(/\/$/)
+    await app.goto('/favoritos')
+    await expect(page.getByRole('heading', { name: 'Golden Beat #207' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Emerald Ape #042' })).toHaveCount(0)
+    await app.goto('/carrinho')
+    await expect(page.getByRole('heading', { name: 'Seu carrinho está vazio' })).toBeVisible()
+  })
+})
