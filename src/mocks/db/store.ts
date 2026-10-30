@@ -1,4 +1,5 @@
 import type { Edition, NftDetail, NftSummary } from '@/api/contracts'
+import { randomUuid, sha256 } from '@/lib/crypto'
 import { buildSeed } from './seed'
 import type { DbState, NftRecord } from './types'
 
@@ -93,11 +94,9 @@ export function fingerprint(value: unknown): string {
 }
 
 export async function hashPassword(salt: string, password: string) {
-  const bytes = new TextEncoder().encode(`${salt}:${password}`)
-  const digest = await crypto.subtle.digest('SHA-256', bytes)
-  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('')
+  return sha256(`${salt}:${password}`)
 }
 
-export const newId = (prefix: string) => `${prefix}-${crypto.randomUUID().slice(0, 8)}`
+export const newId = (prefix: string) => `${prefix}-${randomUuid().slice(0, 8)}`
 
 export const nowIso = () => new Date().toISOString()

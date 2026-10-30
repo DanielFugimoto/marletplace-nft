@@ -9,6 +9,7 @@ import {
   updateProfileSchema,
   walletInputSchema,
 } from '@/api/contracts'
+import { randomUuid } from '@/lib/crypto'
 import { db, hashPassword, newId, nowIso, persist } from '../db/store'
 import type { UserRecord, WalletRecord } from '../db/types'
 import { mockConfig } from '../scenarios'
@@ -92,7 +93,7 @@ export const accountHandlers = [
       if ((await hashPassword(user.salt, body.currentPassword)) !== user.passwordHash) {
         raise('INVALID_PASSWORD', 'Senha atual incorreta.', { fieldErrors: { currentPassword: 'Senha atual incorreta' } })
       }
-      user.salt = crypto.randomUUID()
+      user.salt = randomUuid()
       user.passwordHash = await hashPassword(user.salt, body.newPassword)
       user.updatedAt = nowIso()
       persist()

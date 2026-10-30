@@ -1,5 +1,6 @@
 import { http, HttpResponse } from 'msw'
 import { loginRequestSchema, registerRequestSchema, type User } from '@/api/contracts'
+import { randomUuid } from '@/lib/crypto'
 import { db, hashPassword, newId, nowIso, persist } from '../db/store'
 import type { UserRecord } from '../db/types'
 import { mergeGuestCart } from '../domain/cart'
@@ -16,7 +17,7 @@ export const toUser = (u: UserRecord): User => ({
 })
 
 function createSession(user: UserRecord) {
-  const token = `tok_${crypto.randomUUID().replaceAll('-', '')}`
+  const token = `tok_${randomUuid().replaceAll('-', '')}`
   const expiresAt = new Date(Date.now() + mockConfig.current.flags.sessionTtlMs).toISOString()
   db.state.sessions.push({ token, userId: user.id, expiresAt })
   return { token, expiresAt, user: toUser(user) }
@@ -35,7 +36,7 @@ export const authHandlers = [
       if (fieldErrors.email) raise('EMAIL_TAKEN', 'Já existe uma conta com este e-mail.', { fieldErrors })
       if (fieldErrors.username) raise('USERNAME_TAKEN', 'Nome de usuário indisponível.', { fieldErrors })
 
-      const salt = crypto.randomUUID()
+      const salt = randomUuid()
       const user: UserRecord = {
         id: newId('user'),
         username: body.username,

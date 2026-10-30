@@ -4,6 +4,7 @@ import { type CreateOrderRequest, isTerminalStatus, type Order } from '@/api/con
 import { isApiError } from '@/api/errors'
 import { queryKeys } from '@/api/query-keys'
 import { useSession } from '@/features/auth/session'
+import { randomUuid } from '@/lib/crypto'
 import { STORAGE_KEYS, storage } from '@/lib/storage'
 
 /**
@@ -33,7 +34,7 @@ export const checkoutAttempt = {
   begin(userId: string, body: CreateOrderRequest): CheckoutAttempt {
     const existing = this.get(userId)
     if (existing && sameBody(existing.body, body)) return existing
-    const attempt = { userId, key: `ck-${crypto.randomUUID()}`, body }
+    const attempt = { userId, key: `ck-${randomUuid()}`, body }
     storage.set(STORAGE_KEYS.checkoutAttempt, attempt)
     return attempt
   },
